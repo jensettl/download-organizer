@@ -1,84 +1,87 @@
+import logging
 import os
 from pathlib import Path
-from ressources.file_formats import FILE_FORMAT_FOLDERS
-import logging
-import time
+from assets.file_formats import FILE_FORMAT_FOLDERS
 
-USER = os.getlogin()
-FOLDER = "Downloads"
-FOLDER_PATH = Path(f"C:/Users/{USER}/{FOLDER}")  # Path to the folder to be sorted
+def clear_console() -> None:
+    """Clears the console based on the operating system."""
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-def invalidPath(path: Path) -> bool:
+def invalid_path(path: Path) -> bool:
     """Checks if the path is invalid."""
     return not path.exists() or not path.is_dir()
 
-def isNotaFile(file: Path) -> bool:
-    """Checks if the file is not a file."""
+def not_a_file(file: Path) -> bool:
+    """Checks if the file is not a file. Returns True if not a file, False otherwise."""
     return not file.is_file()
   
-def printFile(file: Path) -> None:
+def print_file(file: Path) -> None:
   """Prints the file name, file format, and file size."""
   file_info = f"File: {file.name} | File format: {file.suffix} | File size: {round(file.stat().st_size/1000000,2)} Megabytes"
   hLine = len(file_info) * "-"
-  print(f"{hLine}\n{file_info}\n{hLine}")
-
-def autoSort(file) -> None:
-    """Automatically sorts a file into the appropriate folder based on its file format."""
-    format_type: str = file.suffix.lower() 
-
-    if format_type in FILE_FORMAT_FOLDERS:
-        folder_name: str = FILE_FORMAT_FOLDERS[format_type]
-        folder_path: Path = file.parent / folder_name
-
-        if invalidPath(folder_path):
-            logging.error(f"Path {folder_path} does not exist. Creating the folder...")
-            folder_path.mkdir()
-
-        try:
-            logging.info(f"Moving {file.name} to {folder_name} folder")
-            file.rename(folder_path / file.name)
-            time.sleep(0.3)
-        except FileExistsError:
-            logging.error(f"File {file.name} already exists in {folder_name} folder")
-    else:
-        logging.info(f"No file format found for {file.name}. Moving to 'Other' folder")
-        other_folder_path: Path = file.parent / "Other"
-
-        if not other_folder_path.exists():
-            other_folder_path.mkdir()
-
-        try:
-            file.rename(other_folder_path / file.name)
-            time.sleep(0.3)
-        except FileExistsError:
-            logging.error(f"File {file.name} already exists in 'Other' folder")
-
-    print("-" * 50)
+  print(f"\n{hLine}\n{file_info}\n{hLine}")
 
 
-def manualSort(file) -> None:
-    """Manually sorts all files of a folder into the appropriate folder based on user input."""
+def sort_file(file: Path, mode: str) -> None:
+    """ Sorts a file into the appropriate folder based on its file format.
+        
+        Args:        
+            file (Path): The file to be sorted.    
+            mode: "auto" for automatic sorting, "manual" for manual sorting. 
+    """
     
-    printFile(file)
-    setting = input(
-        "(1) Move automatically, (2) Delete, (3) Skip or (4) Custom Path. > "
-    )
+    if not_a_file(file):
+        logging.error(f"{file} is not a valid file.")
+        return
 
-    match (setting):
-        case "1":
-            autoSort(file)
-        case "2":
-            logging.info(f"Deleted {file.name} from {file.parent} folder")
-            os.remove(FOLDER_PATH / file)
-        case "3":
-            logging.info(f"Skipped {file.name} from {file.parent} folder")
-        case "4":
-            customPath = input("Enter the custom path > ")
-            if invalidPath(Path(customPath)):
-                logging.error(f"Path {customPath} does not exist")
-            logging.info(f"Moving {file.name} to {customPath} folder")
-            file.rename(Path(customPath) / file.name)
-        case "q":
-            logging.info("Quitting the program")
-        case _:
-            logging.error(f"Invalid Input: {setting}")
+    file_type = file.suffix.lower()
+    target_folder : str = FILE_FORMAT_FOLDERS.get(file_type, "Other")
+    target_path : Path = Path.joinpath(file.parent, target_folder)
+
+    if invalid_path(target_path):
+        logging.info(f"Creating folder: {target_folder}")
+        target_path.mkdir(parents=True, exist_ok=True)
+
+    if mode == "auto":
+        try:
+            logging.info(f"Moving {file.name} to {target_folder} folder")
+            file.rename(Path.joinpath(target_path, file.name))
+        except FileExistsError:
+            logging.error(f"File {file.name} already exists in {target_folder} folder")
+        except Exception as e:
+            logging.error(f"Error moving file {file.name}: {e}")
+    elif mode == "manual":
+        print_file(file)
+
+        action = input(
+    """
+    Choose an action for the file:
+        (1) Auto Sort file based on file type
+        (2) Delete file
+        (3) Skip file
+        (4) Add Custom Path
+
+    Enter your choice:""")
+
+        print("")  # For better readability in the console
+        
+        match action:
+            case "1":
+                sort_file(file, mode="auto") # Recursive call to sort automatically
+            case "2":
+                logging.info(f"Deleted {file.name} from {file.parent} folder")
+                os.remove(file)
+            case "3":
+                logging.info(f"Skipped {file.name} from {file.parent} folder")
+            case "4":
+                customPath = input("Enter the custom path > ")
+                if invalid_path(Path(customPath)):
+                    logging.error(f"Path {customPath} does not exist")
+                else:
+                    logging.info(f"Moving {file.name} to {customPath} folder")
+                    file.rename(Path.joinpath(Path(customPath), file.name))
+            case _:
+                logging.error(f"Invalid Input: {action}")
+
+
+
